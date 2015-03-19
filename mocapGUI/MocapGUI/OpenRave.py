@@ -111,9 +111,9 @@ class OpenRaveWindow(Drawer):
     def clearOpenRave(self):
         self.drawerStarted = False
 
-    # TODO: connect to mainGUI
     # gets the number of frames in the current split
     def getMaxFrames(self):
+        time.sleep(.1) # gives time for drawing to create a new segmenter if needed
         if self.segmenter:
             return self.segmenter.max
         else:
@@ -137,11 +137,14 @@ class OpenRaveWindow(Drawer):
 
     ############################## ROS, requires roscore running
 
+    # handles passing numbers to MocapGUI
     def handleAddTwoInts(self, req):
-        print "Returning [%s + %s = %s]"%(req.a, req.b, (req.a + req.b))
-        return AddTwoIntsResponse(req.a + req.b)
+        if req.a == 0: # key for getMaxFrames is 0
+            return AddTwoIntsResponse(self.getMaxFrames())
+        else: # unknown function calling
+            return AddTwoIntsResponse(0)
 
+    # listens for number requests from MocapGUI
     def addTwoIntsServer(self):
         rospy.init_node('addTwoIntsServer')
         s = rospy.Service('addTwoInts', AddTwoInts, self.handleAddTwoInts)
-        print "Ready to add two ints."

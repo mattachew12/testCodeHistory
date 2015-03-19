@@ -82,7 +82,7 @@ class Drawer():
         self.frames = []
 
     def load_file(self, m_filepath, o_filepath):
-        print "Trying to open file"
+        #print "Trying to open file"
         # global NB_HUMAN # TODO fix global to be class member
 
         marker_file = []
@@ -105,7 +105,7 @@ class Drawer():
 
     # Split is a tuple of the form (start_frame, end_frame)
     def load_range(self, m_filepath, o_filepath, split):
-        print "Trying to open split"
+        #print "Trying to open split"
         # global NB_HUMAN # TODO fix global to be class member
 
         marker_file = []
@@ -189,7 +189,7 @@ class Drawer():
         # IMAGE PUBLISHER
         folder = "/home/rafi/logging_ten/1"
         images = [ f for f in listdir(folder) if isfile(join(folder,f)) and '.png' in f ]
-        print "Num images : ", len(images)
+        #print "Num images : ", len(images)
         times = []
 
         for img in images:
@@ -224,13 +224,14 @@ class Drawer():
 
                     if last:
                         image_name = folder + "/" + last
-                        print image_name
+                        #print image_name
 
                         cv_image = cv2.imread( image_name, 1)
                         cv2.imshow('Camera Data', cv_image)
-                        # print image_name
+                        #print image_name
                 except e:
-                    print e
+                    pass
+                    #print e
 
 
                 if i == 0:

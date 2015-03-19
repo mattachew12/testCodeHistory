@@ -34,8 +34,8 @@ class Segmenter():
         if self.curr < 0:
             self.curr = 0
         if self.curr >= self.max:
-            print "Reached End Of File"
-            self.curr = self.max-1             
+            #print "Reached End Of File"
+            self.curr = self.max-1
 
         last = ""
 
@@ -52,7 +52,7 @@ class Segmenter():
 
     def load_images(self):
         images = [f for f in listdir(self.img_dir) if isfile(join(self.img_dir,f)) and ".png" in f]
-        print "Num images loaded : ", len(images)
+        #print "Num images loaded : ", len(images)
         times = []
 
         for img in images:
@@ -67,7 +67,7 @@ class Segmenter():
         folder, path = os.path.split(self.m_file)
         split_outpath = os.path.join(folder, "Splits.csv")           
         with open(split_outpath, "a") as s_file:            
-            print "saving splits to :", split_outpath
+            #print "saving splits to :", split_outpath
             for split in self.splits:
                 out_str = ""
                 for element in split:

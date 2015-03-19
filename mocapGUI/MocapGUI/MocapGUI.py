@@ -78,7 +78,7 @@ class MainGUI(QtGui.QMainWindow):
         self.jumpTo = "" # frame number to jump to, "" means don't
         self.editedClipLabel = "" # edited label of an unsaved clip
         self.frameRate = FRAME_RATE # fps to play movie at
-        self.maxFrame = 1000 # count of frames within the run
+        self.maxFrame = 0 # count of frames within the run
         self.currFrame = 0 # current frame in the run
         self.unsavedClipDict = {} # dict of QString : clip
 
@@ -465,7 +465,6 @@ class MainGUI(QtGui.QMainWindow):
         if self.unsavedClipDict == {}: # only move when no unsaved clips exist
             if menuText != QtCore.QString(""):
                 self.selectedRunID = menuText
-                self.showRunWidgets() # also resets fields such as maxFrame
 
                 # gets the attributes of the specified run and passes them to OpenRave
                 self.markerFile = self.hierarchy[self.selectedBlockID][self.selectedRunID]["marker file"]
@@ -473,6 +472,7 @@ class MainGUI(QtGui.QMainWindow):
                 self.imgDir = self.hierarchy[self.selectedBlockID][self.selectedRunID]["image folder"]
 
                 self.sendToOR("startDrawingOpenRave", (self.markerFile, self.objFile, self.imgDir))
+                self.showRunWidgets() # also resets fields such as maxFrame
 
             else: # menu was cleared, no run to control
                 self.hideRunWidgets()
@@ -539,9 +539,13 @@ class MainGUI(QtGui.QMainWindow):
     # resets the fields of the viewing box for a new run
     def resetViewingBox(self):
         self.footageLabel.setText("Current Footage: %s" % self.selectedRunID)
-        self.maxFrame = self.getMaxFrame()
         self.currFrame = 0
+        self.setMaxFrame()
         self.scrubSlider.setSliderPosition(0)
+        self.scrubSlider.setTickInterval(self.maxFrame/10) # 10% intervals
+        self.scrubSlider.setRange(0, self.maxFrame)
+        self.frameLabel.setText("Current Frame: %06d        Total Frames: %06d" %
+                                        (self.currFrame, self.maxFrame))
         self.frameRateEntry.setText("")
         self.jumpToEntry.setText("")
         self.errorMessageLabel.setText("")
@@ -580,10 +584,10 @@ class MainGUI(QtGui.QMainWindow):
             self.clipMenu.addItem(menuItem)
         self.clipMenu.setCurrentIndex(0)
 
-    # TODO: get the max frames from the CSV files or OpenRave
-    # gets the maximum number of frames in a run or clip
-    def getMaxFrame(self):
-        return 1000 # clears the list box and updates it with the items in the dict
+    # gets the maximum number of frames in a run
+    def setMaxFrame(self):
+        self.maxFrame = self.addTwoIntsClient(0) # key for getMaxFrame is 0
+        print self.maxFrame
 
     # helper for on_runMenu_activated() and called by view buttons
     # updates the label showing current and max frame numbers
@@ -966,7 +970,6 @@ class MainGUI(QtGui.QMainWindow):
 
     # saves clips to file, updates the XML, and repopulates the hierarchy
     def saveClips(self):
-        self.addTwoIntsClient(4, 5)
         currentRunDict = self.hierarchy[self.selectedBlockID][self.selectedRunID]
         if "clip file" in currentRunDict.keys(): # overwrite a current file
             absClipPath = currentRunDict["clip file"]
@@ -1046,7 +1049,10 @@ class MainGUI(QtGui.QMainWindow):
     # frame: frame number to convert from
     # return percent from conversion
     def frameToPercent(self, frame):
-        return (frame*100/self.maxFrame)
+        if self.maxFrame: # if maxFrame != 0
+            return (frame*100/self.maxFrame)
+        else: # maxFrame = 0
+            return 0
 
     ######################################## Processing
 
@@ -1082,14 +1088,16 @@ class MainGUI(QtGui.QMainWindow):
 
     ######################################## ROS, requires roscore running
 
-    def addTwoIntsClient(self, x, y):
+    # used to get max frames from OpenRave
+    # key: used by OpenRave to interpret current function response
+    def addTwoIntsClient(self, key):
         rospy.wait_for_service('addTwoInts')
         try:
             addTwoInts = rospy.ServiceProxy('addTwoInts', AddTwoInts)
-            response = addTwoInts(x, y)
-            print "Response: ", response.sum
+            response = addTwoInts(key, 0)
+            return response.sum
         except rospy.ServiceException, e:
-            print "Service call failed: %s" % e
+            return 0
 
 # Control server to run the benchmark in its own process
 class Server(object):
