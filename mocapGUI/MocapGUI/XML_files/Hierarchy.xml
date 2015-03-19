@@ -1,0 +1,37 @@
+<root date="11/10/14" path="/home/matthew/catkin_ws/src/mocapGUI/MocapGUI/example_segmenting_data/">
+  <setup_path path="setup/" />
+  <block blockID="Block 1">
+    <run runID="Run 1">
+      <markers path="Run_1/markers/markers_fixed.csv" />
+      <objects path="Run_1/objects/objects_fixed.csv" />
+      <clips path="Run_1/clips/Clips.csv" />
+      <images path="Run_1/images/" />
+    </run>
+    <run runID="Run 2">
+      <markers path="Block_1/2/markers_fixed.csv" />
+      <objects path="Block_1/2/objects_fixed.csv" />
+      <images path="Block_1/2/" />
+    <clips path="Block_1/2/Clips.csv" /></run>
+  </block>
+  
+  <block blockID="Block 2">
+    <run runID="Run 1">
+      <markers path="Other_spot/1/markers_fixed.csv" />
+      <objects path="Other_spot/1/objects_fixed.csv" />
+      <clips path="Other_spot/1/Clips.csv" />
+      <images path="Other_spot/1/" />
+    </run>
+    <run runID="Run 2">
+      <markers path="Other_spot/2/markers_fixed.csv" />
+      <objects path="Other_spot/2/objects_fixed.csv" />
+      <clips path="Other_spot/2/Clips.csv" />
+      <images path="Other_spot/2/" />
+    </run>
+    <run runID="Run 3">
+      <markers path="Other_spot/3/markers_fixed.csv" />
+      <objects path="Other_spot/3/objects_fixed.csv" />
+      <clips path="Other_spot/3/Clips.csv" />
+      <images path="Other_spot/3/" />
+    </run>
+  </block>
+</root>
