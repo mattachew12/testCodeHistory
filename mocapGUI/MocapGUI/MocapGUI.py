@@ -34,7 +34,6 @@ from PyQt4 import QtGui, QtCore
 
 from SliderHighlight import *
 from OpenRave import *
-# removed import cv2, openravepy segmenter qtmocapdrawer *
 
 import rospy
 from mocapGUI.srv import *
@@ -584,10 +583,10 @@ class MainGUI(QtGui.QMainWindow):
             self.clipMenu.addItem(menuItem)
         self.clipMenu.setCurrentIndex(0)
 
-    # gets the maximum number of frames in a run
+    # gets the maximum number of frames in a run from OpenRave
     def setMaxFrame(self):
-        self.maxFrame = self.addTwoIntsClient(0) # key for getMaxFrame is 0
-        print self.maxFrame
+        self.maxFrame = self.addTwoIntsClient(0)
+        #self.maxFrame = 1000
 
     # helper for on_runMenu_activated() and called by view buttons
     # updates the label showing current and max frame numbers
@@ -1089,13 +1088,24 @@ class MainGUI(QtGui.QMainWindow):
     ######################################## ROS, requires roscore running
 
     # used to get max frames from OpenRave
-    # key: used by OpenRave to interpret current function response
+    # key: used by OpenRave to interpret correct function response
     def addTwoIntsClient(self, key):
-        rospy.wait_for_service('addTwoInts')
+        rospy.wait_for_service('intService')
         try:
-            addTwoInts = rospy.ServiceProxy('addTwoInts', AddTwoInts)
+            addTwoInts = rospy.ServiceProxy('intService', AddTwoInts)
             response = addTwoInts(key, 0)
             return response.sum
+        except rospy.ServiceException, e:
+            return 0
+
+    # used to call functions from OpenRave without arguments or return values
+    # functionName: name of function in OpenRave.py
+    def pureFunctionCallClient(self, functionName):
+        rospy.wait_for_service('pureFunctionCall')
+        try:
+            pureFunctionCallService = rospy.ServiceProxy('pureFunctionCall', PureFunctionCall)
+            response = pureFunctionCallService(functionName)
+            return response.returnVal
         except rospy.ServiceException, e:
             return 0
 

@@ -37,6 +37,7 @@ class OpenRaveWindow(Drawer):
 
     # connect pipes and initialize OpenRave window
     def __init__(self, pipeDrawerControl, marker_list, object_list, elbow_pads, r_arm_only):
+        rospy.init_node('openRaveNode') # only one at a time allowed in the same process
         Drawer.__init__(self, marker_list, object_list, elbow_pads, r_arm_only)
         self.pipe = pipeDrawerControl
         self.running = True
@@ -45,7 +46,8 @@ class OpenRaveWindow(Drawer):
         self.paused = True # whether or not to play the footage as a movie
         self.lastFramePlay = 0 # last section of time when the footage was played
         self.secPerFrame = FRAME_RATE # inverted frame rate, hundredths of a sec
-        self.addTwoIntsServer()
+        self.numbersServer() # only one service at once?
+        #self.customServiceServer()
         self.run()
 
     # inherent function for closing the window, not specifically called anywhere
@@ -91,7 +93,7 @@ class OpenRaveWindow(Drawer):
                 self.segmenter.change_frame(1)
                 self.lastFramePlay = curTime
 
-    # initialize OpenRave window
+    # initialize OpenRave windowgit
     def startDrawingOpenRave(self, (markerFile, objFile, imgDir)):
         self.segmenter = Segmenter(markerFile, objFile, imgDir, self)
         self.env.Reset()
@@ -128,23 +130,38 @@ class OpenRaveWindow(Drawer):
     # plays through footage like a movie
     # frameRate: rate to play through at
     def playFootage(self, fps=20):
+        print "play"
         self.paused = False
         self.secPerFrame = (100/fps) # truncates to hundredths of seconds
 
     # pauses playing through footage like a movie
     def pauseFootage(self):
+        print "pause"
         self.paused = True
 
     ############################## ROS, requires roscore running
 
+    # listens for number requests from MocapGUI
+    def numbersServer(self):
+        rospy.Service('intService', AddTwoInts, self.handleAddTwoInts)
+
     # handles passing numbers to MocapGUI
+    # req: initial request instance of AddTwoInts
+    # req argument is automatically provided by rospy.Service
     def handleAddTwoInts(self, req):
         if req.a == 0: # key for getMaxFrames is 0
             return AddTwoIntsResponse(self.getMaxFrames())
         else: # unknown function calling
             return AddTwoIntsResponse(0)
 
-    # listens for number requests from MocapGUI
-    def addTwoIntsServer(self):
-        rospy.init_node('addTwoIntsServer')
-        s = rospy.Service('addTwoInts', AddTwoInts, self.handleAddTwoInts)
+    # listens for function calls with no arguments or return values
+    def pureFunctionCallServer(self):
+        rospy.Service('pureFunctionCall', PureFunctionCall, self.handlePureFunctionCall)
+
+    # handler for PureFunctionCall
+    # req: initial request instance of PureFunctionCall
+    # req argument is automatically provided by rospy.Service
+    def handlePureFunctionCall(self, request):
+        print request.functionName
+        returnVal = getattr(self, request.functionName)() # call function
+        return PureFunctionCallResponse(returnVal) # send back returnVal
