@@ -1,3 +1,3 @@
 string functionName
 ---
-int returnVal
+int64 returnVal

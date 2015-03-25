@@ -46,8 +46,9 @@ class OpenRaveWindow(Drawer):
         self.paused = True # whether or not to play the footage as a movie
         self.lastFramePlay = 0 # last section of time when the footage was played
         self.secPerFrame = FRAME_RATE # inverted frame rate, hundredths of a sec
-        self.numbersServer() # only one service at once?
-        #self.customServiceServer()
+        self.changeFrameServer()
+        self.drawOpenRaveServer()
+        self.pureFunctionCallServer()
         self.run()
 
     # inherent function for closing the window, not specifically called anywhere
@@ -63,7 +64,6 @@ class OpenRaveWindow(Drawer):
 
             # TODO: figure out why this while loop only runs when a command is sent through pipe
             # self.checkToPlayFootage() # checks whether it should play a movie or not
-
             if self.drawerStarted and self.segmenter: # don't populate window if drawer is not started
                 cv_image = cv2.imread(self.segmenter.curr_img, 1)
                 if cv_image is not None: # try to display img only if it exists
@@ -74,7 +74,17 @@ class OpenRaveWindow(Drawer):
 
                 self.draw_frame_skeleton(frame) # Drawer
 
+    # main action of OpenRave window without loop
+    def mainAction(self):
+        if self.drawerStarted and self.segmenter: # don't populate window if drawer is not started
+            cv_image = cv2.imread(self.segmenter.curr_img, 1)
+            if cv_image is not None: # try to display img only if it exists
+                cv2.imshow("Camera Data", cv_image)
 
+            self.clear() # Drawer: clear
+            frame = self.get_frame(self.segmenter.curr) # Drawer: get_frame
+
+            self.draw_frame_skeleton(frame) # Drawer
 
     # run function requested by external process
     def executeFunction(self,name,args):
@@ -93,7 +103,7 @@ class OpenRaveWindow(Drawer):
                 self.segmenter.change_frame(1)
                 self.lastFramePlay = curTime
 
-    # initialize OpenRave windowgit
+    # initialize OpenRave window
     def startDrawingOpenRave(self, (markerFile, objFile, imgDir)):
         self.segmenter = Segmenter(markerFile, objFile, imgDir, self)
         self.env.Reset()
@@ -141,27 +151,39 @@ class OpenRaveWindow(Drawer):
 
     ############################## ROS, requires roscore running
 
-    # listens for number requests from MocapGUI
-    def numbersServer(self):
-        rospy.Service('intService', AddTwoInts, self.handleAddTwoInts)
+    # listens for ChangeFrame requests from MocapGUI
+    def changeFrameServer(self):
+        rospy.Service('changeFrameService', ChangeFrame, self.handleChangeFrame)
 
-    # handles passing numbers to MocapGUI
-    # req: initial request instance of AddTwoInts
-    # req argument is automatically provided by rospy.Service
-    def handleAddTwoInts(self, req):
-        if req.a == 0: # key for getMaxFrames is 0
-            return AddTwoIntsResponse(self.getMaxFrames())
-        else: # unknown function calling
-            return AddTwoIntsResponse(0)
+    # changes frame as requested by MocapGUI
+    # req: initial request instance of ChangeFrame
+    # returns instance of ChangeFrame response
+    def handleChangeFrame(self, request):
+        self.changeFrame(request.frameChangeDelta)
+        self.mainAction() # update drawing
+        return ChangeFrameResponse()
+
+    # listens for DrawOpenRave requests from MocapGUI
+    def drawOpenRaveServer(self):
+        rospy.Service('drawOpenRaveService', DrawOpenRave, self.handleDrawOpenRave)
+
+    # starts drawing mocap footage in OpenRave as requested by MocapGUI
+    # req: initial request instance of DrawOpenRave
+    # returns instance of DrawOpenRave response
+    def handleDrawOpenRave(self, request):
+        argTuple = (request.markerFile, request.objectFile, request.imgDir)
+        self.startDrawingOpenRave(argTuple)
+        self.mainAction() # update drawing
+        return DrawOpenRaveResponse()
 
     # listens for function calls with no arguments or return values
     def pureFunctionCallServer(self):
         rospy.Service('pureFunctionCall', PureFunctionCall, self.handlePureFunctionCall)
 
-    # handler for PureFunctionCall
+    # calls functions as requested by MocapGUI
     # req: initial request instance of PureFunctionCall
-    # req argument is automatically provided by rospy.Service
+    # returns the called function's returnVal to MocapGUI
     def handlePureFunctionCall(self, request):
-        print request.functionName
         returnVal = getattr(self, request.functionName)() # call function
+        self.mainAction() # update drawing
         return PureFunctionCallResponse(returnVal) # send back returnVal

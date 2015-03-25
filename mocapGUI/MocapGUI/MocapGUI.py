@@ -83,8 +83,9 @@ class MainGUI(QtGui.QMainWindow):
 
         # start actual processes
         self.readXML() # creates a hierarchy of the xml/data files
-        self.initGUI() # sets up the GUI window itself
         self.startAnimation() # opens OpenRave window but doesn't populate it
+        self.initGUI() # sets up the GUI window itself
+
 
     # reads the structure of footage data and clip labels from the given xml
     def readXML(self): # path to the xml file to open
@@ -470,7 +471,8 @@ class MainGUI(QtGui.QMainWindow):
                 self.objFile = self.hierarchy[self.selectedBlockID][self.selectedRunID]["object file"]
                 self.imgDir = self.hierarchy[self.selectedBlockID][self.selectedRunID]["image folder"]
 
-                self.sendToOR("startDrawingOpenRave", (self.markerFile, self.objFile, self.imgDir))
+                #self.sendToOR("startDrawingOpenRave", (self.markerFile, self.objFile, self.imgDir))
+                self.drawOpenRaveClient(self.markerFile, self.objFile, self.imgDir)
                 self.showRunWidgets() # also resets fields such as maxFrame
 
             else: # menu was cleared, no run to control
@@ -516,7 +518,9 @@ class MainGUI(QtGui.QMainWindow):
 
     # hides all widgets besides the block and run menus
     def hideRunWidgets(self):
-        self.sendToOR("clearOpenRave") # removes footage from OpenRave
+        # TODO: clearOpenRave fails to actually clear the window because it doesn't affect the main loop in OR
+        #self.sendToOR("clearOpenRave") # removes footage from OpenRave
+        self.pureFunctionCallClient("clearOpenRave") # removes footage from OpenRave
         self.clipMenu.hide()
         self.editClipButton.hide() # shown when viewing a clip
         self.sliderHighlight.resetCurrentClip() # hides current clip highlight
@@ -585,8 +589,7 @@ class MainGUI(QtGui.QMainWindow):
 
     # gets the maximum number of frames in a run from OpenRave
     def setMaxFrame(self):
-        self.maxFrame = self.addTwoIntsClient(0)
-        #self.maxFrame = 1000
+        self.maxFrame = self.pureFunctionCallClient("getMaxFrames")
 
     # helper for on_runMenu_activated() and called by view buttons
     # updates the label showing current and max frame numbers
@@ -594,7 +597,8 @@ class MainGUI(QtGui.QMainWindow):
     def updateFrameCount(self, delta):
         self.errorMessageLabel.setText("") # clear the error message box
         self.currFrame += delta
-        self.sendToOR("changeFrame", delta)
+        #self.sendToOR("changeFrame", delta)
+        self.changeFrameClient(delta)
         if self.currFrame > self.maxFrame: # reset at extremes
             self.currFrame = self.maxFrame
             self.errorMessageLabel.setText("advanced past the last frame, " +
@@ -690,13 +694,13 @@ class MainGUI(QtGui.QMainWindow):
     @QtCore.pyqtSignature("")
     def on_playButton_clicked(self):
         self.errorMessageLabel.setText("") # clear the error message box
-        self.sendToOR("playFootage")
+        self.pureFunctionCallClient("playFootage")
 
     # pauses playing through the footage like a movie
     @QtCore.pyqtSignature("")
     def on_pauseButton_clicked(self):
         self.errorMessageLabel.setText("") # clear the error message box
-        self.sendToOR("pauseFootage")
+        self.pureFunctionCallClient("pauseFootage")
 
     # preliminary reader to keep self.frameRate updated
     # entry: characters in the entry box
@@ -1058,7 +1062,6 @@ class MainGUI(QtGui.QMainWindow):
     # this starts the windows for viewing the footage
     def startAnimation(self):
         self.sendToServer("startOpenRave", args=(self.setupPath))
-        self.sendToOR("startOpenRave")
 
     def close(self):
         self.sendToServer("closeAll")
@@ -1069,8 +1072,8 @@ class MainGUI(QtGui.QMainWindow):
     def sendToServer(self,command,args=None):
         self.pipeServer.send([command,args])
 
-    def sendToOR(self,command,args=None):
-        self.pipeOR.send([command,args])
+    #def sendToOR(self,command,args=None):
+    #    self.pipeOR.send([command,args])
 
     def HandleCallback(self,msg):
         if(len(msg) == 2):
@@ -1087,19 +1090,31 @@ class MainGUI(QtGui.QMainWindow):
 
     ######################################## ROS, requires roscore running
 
-    # used to get max frames from OpenRave
-    # key: used by OpenRave to interpret correct function response
-    def addTwoIntsClient(self, key):
-        rospy.wait_for_service('intService')
+    # used to change the frame in OpenRave
+    # delta: number of frames to change current footage by
+    def changeFrameClient(self, delta):
+        rospy.wait_for_service('changeFrameService')
         try:
-            addTwoInts = rospy.ServiceProxy('intService', AddTwoInts)
-            response = addTwoInts(key, 0)
-            return response.sum
+            changeFrame = rospy.ServiceProxy('changeFrameService', ChangeFrame)
+            changeFrame(delta)
         except rospy.ServiceException, e:
-            return 0
+            pass
 
-    # used to call functions from OpenRave without arguments or return values
+    # used to start drawing a new run in OpenRave
+    # markerFile: string path to run's marker file
+    # objectFile: string path to run's object file
+    # imgDir: string path to run's image directory
+    def drawOpenRaveClient(self, markerFile, objectFile, imgDir):
+        rospy.wait_for_service('drawOpenRaveService')
+        try:
+            drawOpenRave = rospy.ServiceProxy('drawOpenRaveService', DrawOpenRave)
+            drawOpenRave(markerFile, objectFile, imgDir)
+        except rospy.ServiceException, e:
+            pass
+
+    # used to call functions from OpenRave without arguments
     # functionName: name of function in OpenRave.py
+    # returns value sent from function in OpenRave
     def pureFunctionCallClient(self, functionName):
         rospy.wait_for_service('pureFunctionCall')
         try:
