@@ -1,2 +1,0 @@
-string functionName
-string[] arguments

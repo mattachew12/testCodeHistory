@@ -41,18 +41,6 @@ from mocapGUI.srv import *
 logger = None
 FRAME_RATE = 5 # 5 hundredths of a second, fps = 20
 
-# needed for events such as mouse clicks in the GUI to activate associated functions
-class CallbackHandler(QtCore.QThread):
-    def __init__(self,pipe,callback=None):
-        super(CallbackHandler,self).__init__()
-        self.callback = callback
-        self.pipe = pipe
-
-    def run(self):
-        resultValue = self.pipe.recv()
-        msg = [self.callback,resultValue]
-        self.emit(QtCore.SIGNAL("CallbackHandler(PyQt_PyObject)"),msg)
-
 try:
     _fromUtf8 = QtCore.QString.fromUtf8
 except AttributeError:
@@ -62,13 +50,11 @@ except AttributeError:
 class MainGUI(QtGui.QMainWindow):
     # sets up the GUI window and connects it to the other processes
     # xmlPath:      file path to the xml storing the structure of the footage data
-    def __init__(self, pipeOR, pipeServer, xmlPath):
+    # pipeServer:   pipe from GUI to Server
+    def __init__(self, pipeServer, xmlPath):
         super(MainGUI,self).__init__(None)
         self.pipeServer = pipeServer
-        self.pipeOR = pipeOR
 
-        self.CallbackHandler = CallbackHandler(self.pipeOR)
-        self.connect(self.CallbackHandler,QtCore.SIGNAL("CallbackHandler(PyQt_PyObject)"),self.HandleCallback)
         self.__index = 0
 
         self.xmlPath = xmlPath
@@ -85,7 +71,6 @@ class MainGUI(QtGui.QMainWindow):
         self.readXML() # creates a hierarchy of the xml/data files
         self.startAnimation() # opens OpenRave window but doesn't populate it
         self.initGUI() # sets up the GUI window itself
-
 
     # reads the structure of footage data and clip labels from the given xml
     def readXML(self): # path to the xml file to open
@@ -452,6 +437,9 @@ class MainGUI(QtGui.QMainWindow):
                     self.runMenu.addItem(runID)
 
                 self.runMenu.show()
+            else:
+                self.hideRunWidgets()
+                self.runMenu.hide()
         else:
             self.errorMessageLabel.setText("Please save unsaved clips")
             for index in range(self.blockMenu.count()): # set back to previous ID
@@ -471,7 +459,6 @@ class MainGUI(QtGui.QMainWindow):
                 self.objFile = self.hierarchy[self.selectedBlockID][self.selectedRunID]["object file"]
                 self.imgDir = self.hierarchy[self.selectedBlockID][self.selectedRunID]["image folder"]
 
-                #self.sendToOR("startDrawingOpenRave", (self.markerFile, self.objFile, self.imgDir))
                 self.drawOpenRaveClient(self.markerFile, self.objFile, self.imgDir)
                 self.showRunWidgets() # also resets fields such as maxFrame
 
@@ -518,8 +505,6 @@ class MainGUI(QtGui.QMainWindow):
 
     # hides all widgets besides the block and run menus
     def hideRunWidgets(self):
-        # TODO: clearOpenRave fails to actually clear the window because it doesn't affect the main loop in OR
-        #self.sendToOR("clearOpenRave") # removes footage from OpenRave
         self.pureFunctionCallClient("clearOpenRave") # removes footage from OpenRave
         self.clipMenu.hide()
         self.editClipButton.hide() # shown when viewing a clip
@@ -597,7 +582,6 @@ class MainGUI(QtGui.QMainWindow):
     def updateFrameCount(self, delta):
         self.errorMessageLabel.setText("") # clear the error message box
         self.currFrame += delta
-        #self.sendToOR("changeFrame", delta)
         self.changeFrameClient(delta)
         if self.currFrame > self.maxFrame: # reset at extremes
             self.currFrame = self.maxFrame
@@ -654,7 +638,6 @@ class MainGUI(QtGui.QMainWindow):
     def on_superSkipForwardButton_clicked(self):
         self.updateFrameCount(200)
 
-    # TODO: get msg from OR on frame count, if jumpTo > max, jumpTo text = max
     # jumps to frame in the footage
     @QtCore.pyqtSignature("")
     def on_jumpToButton_clicked(self):
@@ -1072,22 +1055,6 @@ class MainGUI(QtGui.QMainWindow):
     def sendToServer(self,command,args=None):
         self.pipeServer.send([command,args])
 
-    #def sendToOR(self,command,args=None):
-    #    self.pipeOR.send([command,args])
-
-    def HandleCallback(self,msg):
-        if(len(msg) == 2):
-            if(msg[0] is not None):
-                self.updateTeOutput(msg[1][0])
-                try:
-                    msg[0](msg[1][1])
-                except Exception as e:
-                    logger.error(str(e))
-            else:
-                self.updateTeOutput("ERROR: "+msg[1][0])
-            return
-        logger.error("ERROR in request format")
-
     ######################################## ROS, requires roscore running
 
     # used to change the frame in OpenRave
@@ -1133,25 +1100,25 @@ class Server(object):
         self.running = True
         self.orgui = None
         self.qtgui = None
-        (self.pipeQtControl, self.pipeDrawerControl) = Pipe() # pipe between GUI and OR
         (self.pipeQtServer, self.pipeServer) = Pipe() # pipe between GUI and Server
 
         self.StartQtGuiControl() # starts GUI
         self.run() # starts main server loop which waits for input
 
-    # initializes the GUI process
-    def StartQtGuiControl(self): # step one of server
+    # initializes the GUI process, run by Server
+    def StartQtGuiControl(self):
         self.qtgui = Process(target=self._StartQtGuiControl)
         self.qtgui.start()
 
     # process containing the GUI
     def _StartQtGuiControl(self):
         app = QtGui.QApplication(sys.argv)
-        form = MainGUI(self.pipeQtControl,self.pipeQtServer, self.xmlPath)
+        form = MainGUI(self.pipeQtServer, self.xmlPath)
         form.show()
         app.exec_() # Main loop of the QT GUI
 
-    # starts the OpenRave window but does not populate it
+    # starts the OpenRave window with config settings but does not populate it
+    # this is called from MainGUI once the config settings have been read
     # setupFilePath: path to the setup.csv file for config settings
     def startOpenRave(self, setupFilePath):
        if self.orgui:
@@ -1162,8 +1129,7 @@ class Server(object):
        RARM_ONLY   = setup[2]
        # gets the number of markers based on config data
        NB_MARKERS  = get_nb_markers(ELBOW_PADS, RARM_ONLY)
-       # last step of Server for start up
-       self.orgui = Process(target=OpenRaveWindow,args=(self.pipeDrawerControl, NB_MARKERS, NB_HUMAN, ELBOW_PADS, RARM_ONLY))
+       self.orgui = Process(target=OpenRaveWindow,args=(self.pipeQtServer, NB_MARKERS, NB_HUMAN, ELBOW_PADS, RARM_ONLY))
        self.orgui.start()
 
     # Main server loop which waits for and handles input from the GUI

@@ -31,7 +31,7 @@ from mocapGUI.srv import *
 
 FRAME_RATE = 5 # 5 hundredths of a second, fps = 20
 
-# TODO: connect functions in this class to MainGUI
+# TODO: close camera window when this window is closed
 # handles all functions relevant to the OpenRave window
 class OpenRaveWindow(Drawer):
 
@@ -52,17 +52,18 @@ class OpenRaveWindow(Drawer):
         self.run()
 
     # inherent function for closing the window, not specifically called anywhere
+    # TODO: don't know how or when to call this
     def __del__(self):
         self.drawerStarted = False
+        print "closing OR"
+        cv2.destroyWindow("Camera Data")
         RaveDestroy()
 
     # main loop of OpenRave window
     def run(self):
         while(self.running):
-            (functionName,args) = self.pipe.recv() # receive command from GUI
-            self.executeFunction(functionName, args) # execute requested command
+            time.sleep(.15) # don't draw too fast or the lines don't appear
 
-            # TODO: figure out why this while loop only runs when a command is sent through pipe
             # self.checkToPlayFootage() # checks whether it should play a movie or not
             if self.drawerStarted and self.segmenter: # don't populate window if drawer is not started
                 cv_image = cv2.imread(self.segmenter.curr_img, 1)
@@ -73,6 +74,8 @@ class OpenRaveWindow(Drawer):
                 frame = self.get_frame(self.segmenter.curr) # Drawer: get_frame
 
                 self.draw_frame_skeleton(frame) # Drawer
+            else: # clear frames when there's no footage to draw
+                self.clear()
 
     # main action of OpenRave window without loop
     def mainAction(self):
